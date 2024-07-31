@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>끝말잇기 게임</title>
+</head>
+<body>
+    <h1>끝말잇기 게임</h1>
+    <input type="text" id="wordInput" placeholder="단어를 입력하세요">
+    <button onclick="addWord()">단어 추가</button>
+    <p id="message"></p>
+    <p id="botResponse"></p>
+
+    <script>
+        let db;
+        const request = indexedDB.open("EndwordGameDB", 1);
+
+        request.onupgradeneeded = function(event) {
+            db = event.target.result;
+            let objectStore = db.createObjectStore("words", { keyPath: "id", autoIncrement: true });
+            objectStore.createIndex("word", "word", { unique: true });
+        };
+
+        request.onsuccess = function(event) {
+            db = event.target.result;
+            console.log("Database opened successfully");
+        };
+
+        request.onerror = function(event) {
+            console.error("Database error: ", event.target.errorCode);
+        };
+
+        function saveWord(word) {
+            const transaction = db.transaction(["words"], "readwrite");
+            const objectStore = transaction.objectStore("words");
+            const request = objectStore.add({ word: word });
+            request.onsuccess = function() {
+                console.log("Word saved successfully");
+            };
+            request.onerror = function(event) {
+                console.error("Error saving word: ", event.target.errorCode);
+            };
+        }
+
+        function getLastCharacter(word) {
+            return word[word.length - 1];
+        }
+
+        function getWordStartingWith(character, callback) {
+            const transaction = db.transaction(["words"], "readonly");
+            const objectStore = transaction.objectStore("words");
+            const index = objectStore.index("word");
+            let found = false;
+
+            index.openCursor().onsuccess = function(event) {
+                const cursor = event.target.result;
+                if (cursor) {
+                    if (cursor.value.word[0] === character) {
+                        found = true;
+                        callback(cursor.value.word);
+                        return;
+                    }
+                    cursor.continue();
+                } else {
+                    if (!found) {
+                        callback(null);
+                    }
+                }
+            };
+        }
+
+        function addWord() {
+            const wordInput = document.getElementById('wordInput');
+            const word = wordInput.value.trim();
+            if (word) {
+                saveWord(word);
+                wordInput.value = '';
+                document.getElementById('message').textContent = '단어가 추가되었습니다.';
+
+                const lastChar = getLastCharacter(word);
+                getWordStartingWith(lastChar, function(responseWord) {
+                    if (responseWord) {
+                        document.getElementById('botResponse').textContent = '봇의 응답: ' + responseWord;
+                    } else {
+                        document.getElementById('botResponse').textContent = '봇이 적절한 단어를 찾지 못했습니다.';
+                    }
+                });
+            } else {
+                document.getElementById('message').textContent = '단어를 입력하세요.';
+            }
+        }
+    </script>
+</body>
+</html>
